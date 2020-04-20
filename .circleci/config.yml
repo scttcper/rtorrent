@@ -2,18 +2,12 @@ version: 2.1
 jobs:
   test:
     docker:
-      - image: circleci/node:10
+      - image: circleci/node:12
     steps:
       - checkout
-      - restore_cache:
-          key: dependency-cache-{{ checksum "package.json" }}
       - run:
           name: npm-install
           command: npm install
-      - save_cache:
-          key: dependency-cache-{{ checksum "package.json" }}
-          paths:
-            - ./node_modules
       - run:
           name: test
           command: npm run test:ci
@@ -29,12 +23,10 @@ jobs:
           path: jest
   release:
     docker:
-      - image: circleci/node:10
+      - image: circleci/node:12
     steps:
       - checkout
-      - restore_cache:
-          key: dependency-cache-{{ checksum "package.json" }}
-      - run: npm install
+      - run: npm ci
       - run: npm run build
       - run: npm run semantic-release
 

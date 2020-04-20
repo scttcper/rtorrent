@@ -14,6 +14,7 @@ import { Cookie } from 'tough-cookie';
 import { URLSearchParams } from 'url';
 import urlJoin from 'url-join';
 import builder from 'xmlbuilder';
+import htmlparser from 'htmlparser2';
 
 const defaults: TorrentSettings = {
   baseUrl: 'http://localhost:8000/',
@@ -189,8 +190,25 @@ export class Rtorrent {
     const xml = builder.create(obj, { encoding: 'UTF-8' }).end();
     const res = await got.post('http://localhost:8080/plugins/rpc/rpc.php', {
       body: xml,
+    });
 
-    })
+    let count = 2;
+    const parser = new htmlparser.Parser(
+      {
+        onopentag(name, attribs) {
+          console.log({ name });
+        },
+        ontext(text) {
+          console.log('-->', { key: obj.methodCall.params.param[count].value.string, value: text });
+          count++;
+        },
+        onend() {
+          console.log('That\'s it?!');
+        },
+      } as any,
+      { decodeEntities: true },
+    );
+    parser.parseComplete(res.body.replace(/\r?\n|\r/g, ''));
     return res.body;
   }
 
