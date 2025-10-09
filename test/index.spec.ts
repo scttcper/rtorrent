@@ -20,7 +20,6 @@ async function waitForTorrent(client: RTorrent) {
   await pWaitFor(
     async () => {
       const torrents = await client.getAllTorrents();
-      console.log(torrents);
       return torrents.length === 1;
     },
     { timeout: 10000 },
@@ -85,7 +84,6 @@ it('should get system info', async () => {
 it('should add torrent from buffer', async () => {
   const client = new RTorrent({ baseUrl, username, password });
   const res = await client.addTorrentFromFile(torrentFileBuffer);
-  console.log(res);
   expect(res).toBe(true);
   await waitForTorrent(client);
   const torrents = await client.getAllTorrents();
@@ -229,12 +227,42 @@ it('should return normalized torrent data', async () => {
   await setupTorrent(client);
   const res = await client.getAllData();
   const torrent = res.torrents[0]!;
+
+  // Basic identity
   expect(torrent.name).toBe(torrentName);
   expect(torrent.id).toBeTruthy();
+
+  // Core state and speeds
   expect(torrent.state).toBeDefined();
-  expect(torrent.progress).toBeDefined();
-  expect(torrent.totalSize).toBeDefined();
-  expect(torrent.savePath).toBeDefined();
+  expect(typeof torrent.state).toBe('string');
+  expect(typeof torrent.uploadSpeed).toBe('number');
+  expect(typeof torrent.downloadSpeed).toBe('number');
+
+  // Sizes and progress
+  expect(typeof torrent.totalSize).toBe('number');
+  expect(typeof torrent.totalDownloaded).toBe('number');
+  expect(typeof torrent.totalUploaded).toBe('number');
+  expect(typeof torrent.progress).toBe('number');
+  expect(torrent.progress).toBeGreaterThanOrEqual(0);
+  expect(torrent.progress).toBeLessThanOrEqual(1);
+
+  // Paths and metadata
+  expect(typeof torrent.savePath).toBe('string');
+  expect(Array.isArray(torrent.tags)).toBe(true);
+  expect(typeof torrent.dateAdded).toBe('string');
+  expect(typeof torrent.dateCompleted).toBe('string');
+  expect(typeof torrent.label).toBe('string');
+
+  // Peers and queue
+  expect(typeof torrent.connectedPeers).toBe('number');
+  expect(typeof torrent.connectedSeeds).toBe('number');
+  expect(typeof torrent.totalPeers).toBe('number');
+  expect(typeof torrent.totalSeeds).toBe('number');
+  expect(typeof torrent.queuePosition).toBe('number');
+
+  // Ratio
+  expect(typeof torrent.ratio).toBe('number');
+  expect(torrent.ratio).toBeGreaterThanOrEqual(0);
 });
 
 it('should add normalized torrent', async () => {
