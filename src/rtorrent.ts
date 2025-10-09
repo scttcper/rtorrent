@@ -606,8 +606,8 @@ export class RTorrent implements TorrentClient {
   async removeTorrent(hash: string, deleteFiles = false): Promise<boolean> {
     if (deleteFiles) {
       // rTorrent doesn't have a direct way to delete files,
-      // this would need to be handled externally
-      console.warn('rTorrent does not support deleting files via API');
+      // ruTorrent could potentially handle, radarr does this via filesystem
+      throw new Error('rTorrent does not support deleting files via API');
     }
     return this.removeTorrentInternal(hash);
   }
