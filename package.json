@@ -1,6 +1,6 @@
 {
   "name": "@ctrl/rtorrent",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "TypeScript api wrapper for rtorrent",
   "author": "Scott Cooper <scttcper@gmail.com>",
   "license": "MIT",
