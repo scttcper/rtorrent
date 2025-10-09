@@ -2,7 +2,6 @@
 
 TypeScript API wrapper for rTorrent XML-RPC interface
 
-
 ## Installation
 
 ```bash
