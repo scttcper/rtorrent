@@ -1,4 +1,3 @@
-import { XMLParser } from 'fast-xml-parser';
 import { ofetch } from 'ofetch';
 import type { Jsonify } from 'type-fest';
 import { joinURL } from 'ufo';
@@ -29,6 +28,7 @@ import {
   RTorrentTracker,
   RTorrentView,
 } from './types.js';
+import { isVersionGreater, buildXmlRpcRequest, parseXmlRpcResponse } from './xmlrpcUtils.js';
 
 interface RTorrentState extends TorrentClientState {
   version?: {
@@ -40,20 +40,9 @@ interface RTorrentState extends TorrentClientState {
 const defaults: RTorrentConfig = {
   baseUrl: 'http://localhost:8080',
   path: '/RPC2',
-  username: '',
-  password: '',
   timeout: 5000,
   useSsl: false,
 };
-
-// XML-RPC parser configuration
-const xmlParser = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: '@_',
-  parseAttributeValue: true,
-  parseTagValue: true,
-  trimValues: true,
-});
 
 export class RTorrent implements TorrentClient {
   /**
@@ -118,8 +107,7 @@ export class RTorrent implements TorrentClient {
       const cleanVersion = version.replace(/^v/, '').split('-')[0]!;
       this.state.version = {
         version,
-        isVersion090OrHigher:
-          cleanVersion === '0.9.0' || this.isVersionGreater(cleanVersion, '0.9.0'),
+        isVersion090OrHigher: cleanVersion === '0.9.0' || isVersionGreater(cleanVersion, '0.9.0'),
       };
     }
 
@@ -635,7 +623,7 @@ export class RTorrent implements TorrentClient {
   private async xmlRpcRequest<T>(methodCall: RTorrentMethodCall): Promise<T> {
     const url = joinURL(this.config.baseUrl, this.config.path ?? '');
 
-    const xmlBody = this.buildXmlRpcRequest(methodCall);
+    const xmlBody = buildXmlRpcRequest(methodCall);
     const response = await ofetch<string>(url, {
       method: 'POST',
       headers: {
@@ -646,159 +634,7 @@ export class RTorrent implements TorrentClient {
       timeout: this.config.timeout,
     });
 
-    return this.parseXmlRpcResponse<T>(response);
-  }
-
-  private buildXmlRpcRequest(methodCall: RTorrentMethodCall): string {
-    let xml = '<?xml version="1.0"?><methodCall>';
-    xml += `<methodName>${methodCall.methodName}</methodName>`;
-    xml += '<params>';
-
-    for (const param of methodCall.params) {
-      xml += '<param><value>';
-      if (typeof param === 'string') {
-        xml += `<string>${this.escapeXml(param)}</string>`;
-      } else if (typeof param === 'number') {
-        // Use i8 for large numbers, i4 for smaller ones
-        if (param > 2147483647 || param < -2147483648) {
-          xml += `<i8>${param}</i8>`;
-        } else {
-          xml += `<i4>${param}</i4>`;
-        }
-      } else if (param instanceof Uint8Array) {
-        xml += `<base64>${Buffer.from(param).toString('base64')}</base64>`;
-      } else {
-        xml += `<string>${this.escapeXml(String(param))}</string>`;
-      }
-      xml += '</value></param>';
-    }
-
-    xml += '</params></methodCall>';
-    return xml;
-  }
-
-  private parseXmlRpcResponse<T>(xml: string): T {
-    try {
-      const parsed = xmlParser.parse(xml);
-
-      // Check for faults
-      if (parsed.methodResponse?.fault) {
-        this.handleXmlRpcFault(parsed.methodResponse.fault);
-      }
-
-      // Extract response value
-      const value = parsed.methodResponse?.params?.param?.value;
-      if (!value) {
-        throw new Error('No value found in XML-RPC response');
-      }
-
-      return this.parseXmlValue(value) as T;
-    } catch (error) {
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error('Failed to parse XML-RPC response');
-    }
-  }
-
-  private handleXmlRpcFault(fault: any): never {
-    let faultCode = 'unknown';
-    let faultString = 'Unknown error';
-
-    if (fault.value?.struct?.member) {
-      const members = Array.isArray(fault.value.struct.member)
-        ? fault.value.struct.member
-        : [fault.value.struct.member];
-
-      const faultCodeMember = members.find((m: any) => m.name === 'faultCode');
-      const faultStringMember = members.find((m: any) => m.name === 'faultString');
-
-      if (faultCodeMember?.value) {
-        const code = this.extractNumberValue(faultCodeMember.value);
-        faultCode = code !== null ? String(code) : 'unknown';
-      }
-      if (faultStringMember?.value) {
-        faultString = faultStringMember.value.string || 'Unknown error';
-      }
-    }
-
-    throw new Error(`XML-RPC Fault ${faultCode}: ${faultString}`);
-  }
-
-  private parseXmlValue(value: any): unknown {
-    // Handle string values
-    if (value.string !== undefined) {
-      return value.string;
-    }
-
-    // Handle integer values
-    if ('int' in value || 'i4' in value || 'i8' in value) {
-      return this.extractNumberValue(value);
-    }
-
-    // Handle array values
-    if (value.array) {
-      return this.parseXmlArrayFromParsed(value.array);
-    }
-
-    // Handle base64 values
-    if (value.base64 !== undefined) {
-      return Buffer.from(value.base64, 'base64');
-    }
-
-    throw new Error('Unable to parse XML-RPC response value');
-  }
-
-  private extractNumberValue(value: any): number | null {
-    const numValue = value.int ?? value.i4 ?? value.i8;
-    return numValue !== undefined ? Number(numValue) : null;
-  }
-
-  private parseXmlArrayFromParsed(array: any): unknown[][] {
-    const results: unknown[][] = [];
-
-    if (!array.data) {
-      return results;
-    }
-
-    // Handle single array or array of arrays
-    const dataItems = Array.isArray(array.data) ? array.data : [array.data];
-
-    for (const dataItem of dataItems) {
-      const row = this.parseXmlArrayItem(dataItem);
-      if (row.length > 0) {
-        results.push(row);
-      }
-    }
-
-    return results;
-  }
-
-  private parseXmlArrayItem(dataItem: any): unknown[] {
-    const row: unknown[] = [];
-
-    if (dataItem.value && dataItem.value.array) {
-      // Handle nested array structure
-      let rowData = dataItem.value.array.data;
-
-      // Handle nested value structure
-      if (rowData && rowData.value) {
-        rowData = rowData.value;
-      }
-
-      // Handle single value or array of values
-      const values = Array.isArray(rowData) ? rowData : [rowData];
-      for (const value of values) {
-        row.push(this.parseXmlValue(value));
-      }
-    } else if (dataItem.value && Array.isArray(dataItem.value)) {
-      // Handle direct array of values
-      for (const value of dataItem.value) {
-        row.push(this.parseXmlValue(value));
-      }
-    }
-
-    return row;
+    return parseXmlRpcResponse<T>(response);
   }
 
   private parseTorrentData(row: unknown[]): RTorrentTorrent {
@@ -840,29 +676,5 @@ export class RTorrent implements TorrentClient {
       chunksHashed: row[34] as number,
       views: [],
     };
-  }
-
-  private escapeXml(str: string): string {
-    return str
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
-
-  private isVersionGreater(version1: string, version2: string): boolean {
-    const v1Parts = version1.split('.').map(Number);
-    const v2Parts = version2.split('.').map(Number);
-
-    for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
-      const v1Part = v1Parts[i] || 0;
-      const v2Part = v2Parts[i] || 0;
-
-      if (v1Part > v2Part) return true;
-      if (v1Part < v2Part) return false;
-    }
-
-    return false;
   }
 }

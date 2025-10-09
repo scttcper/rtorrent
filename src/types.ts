@@ -619,8 +619,6 @@ export interface RTorrentClient extends TorrentClient {
 export const defaultRTorrentConfig: RTorrentConfig = {
   baseUrl: 'http://localhost:8080',
   path: '/RPC2',
-  username: '',
-  password: '',
   timeout: 5000,
   useSsl: false,
 };
