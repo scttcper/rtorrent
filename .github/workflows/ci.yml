@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # https://github.com/actions/checkout
+      - uses: actions/checkout@v5
+
+      # https://github.com/wyvox/action-setup-pnpm
+      - uses: wyvox/action-setup-pnpm@v3
+        with:
+          node-version: 24
+
+      - name: start rtorrent
+        # starts rtorrent in docker using linuxserver/rutorrent
+        run: |
+          docker run -d \
+            --name rtorrent-test \
+            -p 8080:80 \
+            -p 49164:49164/udp \
+            -p 49164:49164 \
+            -e PUID=1000 \
+            -e PGID=1000 \
+            -e TZ=UTC \
+            -v rtorrent-config:/config \
+            -v rtorrent-downloads:/downloads \
+            linuxserver/rutorrent:latest
+
+          # Wait for rtorrent to start
+          sleep 10
+
+          # Check if container is running
+          docker ps | grep rtorrent-test
+
+      - name: lint
+        run: pnpm run lint
+
+      - name: test
+        run: pnpm run test:ci
+
+      - name: coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
