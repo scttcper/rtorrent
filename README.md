@@ -1,10 +1,7 @@
-# @ctrl/rtorrent
+# @ctrl/rtorrent [![npm version](https://img.shields.io/npm/v/@ctrl/rtorrent.svg)](https://www.npmjs.com/package/@ctrl/rtorrent)
 
 TypeScript API wrapper for rTorrent XML-RPC interface
 
-[![npm version](https://img.shields.io/npm/v/@ctrl/rtorrent.svg)](https://www.npmjs.com/package/@ctrl/rtorrent)
-[![npm downloads](https://img.shields.io/npm/dm/@ctrl/rtorrent.svg)](https://www.npmjs.com/package/@ctrl/rtorrent)
-[![MIT License](https://img.shields.io/npm/l/@ctrl/rtorrent.svg)](https://opensource.org/licenses/MIT)
 
 ## Installation
 

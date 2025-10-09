@@ -1,4 +1,4 @@
-dist/
-node_modules/
-coverage/
-*.log
+package.json
+pnpm-lock.yaml
+pnpm-workspace.yaml
+CHANGELOG.md
