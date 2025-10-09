@@ -18,6 +18,8 @@ import { RTorrent } from '@ctrl/rtorrent';
 const rtorrent = new RTorrent({
   baseUrl: 'http://localhost:8080',
   path: '/RPC2',
+  username: 'admin',
+  password: 'admin',
   timeout: 5000,
   useSsl: false,
 });
@@ -141,6 +143,8 @@ const restoredClient = RTorrent.createFromState(config, state);
 interface RTorrentConfig {
   baseUrl: string; // rTorrent XML-RPC endpoint URL
   path?: string; // XML-RPC path (default: '/RPC2')
+  username?: string; // Username for HTTP Basic Authentication
+  password?: string; // Password for HTTP Basic Authentication
   timeout?: number; // Request timeout in ms (default: 5000)
   useSsl?: boolean; // Use HTTPS (default: false)
 }

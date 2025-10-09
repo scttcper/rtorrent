@@ -1,7 +1,7 @@
 import { ofetch } from 'ofetch';
 import type { Jsonify } from 'type-fest';
 import { joinURL } from 'ufo';
-import { isUint8Array, stringToUint8Array } from 'uint8array-extras';
+import { isUint8Array, stringToUint8Array, stringToBase64 } from 'uint8array-extras';
 
 import { magnetDecode } from '@ctrl/magnet-link';
 import type {
@@ -42,6 +42,8 @@ const defaults: RTorrentConfig = {
   path: '/RPC2',
   timeout: 5000,
   useSsl: false,
+  username: '',
+  password: '',
 };
 
 export class RTorrent implements TorrentClient {
@@ -624,12 +626,21 @@ export class RTorrent implements TorrentClient {
     const url = joinURL(this.config.baseUrl, this.config.path ?? '');
 
     const xmlBody = buildXmlRpcRequest(methodCall);
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'text/xml',
+      'User-Agent': 'RTorrent-Client/1.0',
+    };
+
+    // Add Basic Auth header if credentials are provided
+    if (this.config.username && this.config.password) {
+      const credentials = stringToBase64(`${this.config.username}:${this.config.password}`);
+      headers.Authorization = `Basic ${credentials}`;
+    }
+
     const response = await ofetch<string>(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'text/xml',
-        'User-Agent': 'RTorrent-Client/1.0',
-      },
+      headers,
       body: xmlBody,
       timeout: this.config.timeout,
     });

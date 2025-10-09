@@ -20,6 +20,14 @@ export interface RTorrentConfig extends TorrentClientConfig {
    * @default false
    */
   useSsl?: boolean;
+  /**
+   * Username for HTTP Basic Authentication
+   */
+  username?: string;
+  /**
+   * Password for HTTP Basic Authentication
+   */
+  password?: string;
 }
 
 /**
@@ -621,4 +629,6 @@ export const defaultRTorrentConfig: RTorrentConfig = {
   path: '/RPC2',
   timeout: 5000,
   useSsl: false,
+  username: '',
+  password: '',
 };
