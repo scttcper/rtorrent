@@ -1,8 +1,3 @@
-import { ofetch } from 'ofetch';
-import type { Jsonify } from 'type-fest';
-import { joinURL } from 'ufo';
-import { isUint8Array, stringToUint8Array, stringToBase64 } from 'uint8array-extras';
-
 import { magnetDecode } from '@ctrl/magnet-link';
 import type {
   AddTorrentOptions as NormalizedAddTorrentOptions,
@@ -13,6 +8,10 @@ import type {
   TorrentClientState,
 } from '@ctrl/shared-torrent';
 import { hash } from '@ctrl/torrent-file';
+import { ofetch } from 'ofetch';
+import type { Jsonify } from 'type-fest';
+import { joinURL } from 'ufo';
+import { isUint8Array, stringToUint8Array, stringToBase64 } from 'uint8array-extras';
 
 import { normalizeTorrentData } from './normalizeTorrentData.js';
 import {
@@ -536,13 +535,11 @@ export class RTorrent implements TorrentClient {
     if (typeof torrent === 'string') {
       if (torrent.startsWith('magnet:')) {
         return this.addMagnet(torrent, options);
-      } else {
-        const fileContent = stringToUint8Array(torrent);
-        return this.addTorrentFromFile(fileContent, options.rtorrent);
       }
-    } else {
-      return this.addTorrentFromFile(torrent, options.rtorrent);
+      const fileContent = stringToUint8Array(torrent);
+      return this.addTorrentFromFile(fileContent, options.rtorrent);
     }
+    return this.addTorrentFromFile(torrent, options.rtorrent);
   }
 
   async addMagnet(magnetUrl: string, options: Partial<AddTorrentOptions> = {}): Promise<boolean> {
@@ -587,7 +584,9 @@ export class RTorrent implements TorrentClient {
       if (torrent !== null) {
         return this.getTorrent(torrentHash);
       }
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+      await new Promise(resolve => {
+        setTimeout(resolve, delayMs);
+      });
     }
 
     throw new Error(`Torrent with hash ${torrentHash} not found after ${maxAttempts * delayMs}ms`);
