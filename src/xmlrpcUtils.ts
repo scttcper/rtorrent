@@ -26,8 +26,12 @@ export function isVersionGreater(version1: string, version2: string): boolean {
     const v1Part = v1Parts[i] || 0;
     const v2Part = v2Parts[i] || 0;
 
-    if (v1Part > v2Part) return true;
-    if (v1Part < v2Part) return false;
+    if (v1Part > v2Part) {
+      return true;
+    }
+    if (v1Part < v2Part) {
+      return false;
+    }
   }
 
   return false;
@@ -109,7 +113,7 @@ export function buildXmlRpcRequest(methodCall: { methodName: string; params: unk
       xml += `<string>${escapeXml(param)}</string>`;
     } else if (typeof param === 'number') {
       // Use i8 for large numbers, i4 for smaller ones
-      if (param > 2147483647 || param < -2147483648) {
+      if (param > 2_147_483_647 || param < -2_147_483_648) {
         xml += `<i8>${param}</i8>`;
       } else {
         xml += `<i4>${param}</i4>`;

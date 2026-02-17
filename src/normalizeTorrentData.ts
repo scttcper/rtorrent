@@ -19,7 +19,7 @@ export function normalizeTorrentData(torrent: RTorrentTorrent): NormalizedTorren
 
   // Determine torrent status based on rTorrent state
   let state = NormalizedTorrentState.unknown;
-  let stateMessage = '';
+  const stateMessage = '';
 
   if (torrent.isComplete) {
     state = NormalizedTorrentState.seeding;

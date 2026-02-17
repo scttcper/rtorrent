@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { setTimeout } from 'node:timers/promises';
 
 import pWaitFor from 'p-wait-for';
 import { afterEach, expect, it } from 'vitest';
@@ -20,7 +21,7 @@ async function waitForTorrent(client: RTorrent) {
       const torrents = await client.getAllTorrents();
       return torrents.length === 1;
     },
-    { timeout: 10000 },
+    { timeout: 10_000 },
   );
 }
 
@@ -32,7 +33,7 @@ async function setupTorrent(client: RTorrent): Promise<string> {
   await client.addTorrentFromFile(torrentFileBuffer);
   await waitForTorrent(client);
   // Add delay after torrent operations
-  await new Promise(resolve => setTimeout(resolve, 300));
+  await setTimeout(300);
   const torrents = await client.getAllTorrents();
   return torrents[0]!.hash;
 }
@@ -45,7 +46,7 @@ afterEach(async () => {
     await client.removeTorrent(torrent.hash, false);
   }
   // Add delay to prevent connection issues
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await setTimeout(500);
 });
 
 it('should be instantiable', () => {
@@ -87,7 +88,7 @@ it('should add torrent from buffer', async () => {
   const torrents = await client.getAllTorrents();
   expect(torrents.length).toBe(1);
   // Add delay after test
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await setTimeout(500);
 });
 
 it('should add torrent with label', async () => {
@@ -101,7 +102,7 @@ it('should add torrent with label', async () => {
   expect(torrents.length).toBe(1);
   expect(torrents[0]!.custom1).toBe('swag');
   // Add delay after test
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await setTimeout(500);
 });
 
 it('should add torrent with priority', async () => {
@@ -115,7 +116,7 @@ it('should add torrent with priority', async () => {
   expect(torrents.length).toBe(1);
   expect(torrents[0]!.priority).toBe(RTorrentPriority.High);
   // Add delay after test
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await setTimeout(500);
 });
 
 it('should add torrent with directory', async () => {
@@ -132,7 +133,7 @@ it('should add torrent with directory', async () => {
   // rTorrent returns path without trailing slash
   expect(torrents[0]!.basePath).toBe('/downloads/linux');
   // Add delay after test
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await setTimeout(500);
 });
 
 it('should add magnet link', async () => {
@@ -140,7 +141,7 @@ it('should add magnet link', async () => {
   const res = await client.addTorrentFromUrl(magnet);
   expect(res).toBe(true);
   // Add delay after test
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await setTimeout(500);
 });
 
 it('should get torrent properties', async () => {
@@ -273,8 +274,8 @@ it('should add normalized torrent', async () => {
   expect(torrent.label).toBe('swag');
   expect(torrent.id).toBeTruthy();
   // Add delay after test
-  await new Promise(resolve => setTimeout(resolve, 500));
-}, 20000);
+  await setTimeout(500);
+}, 20_000);
 
 it('should be able to export and create from state', async () => {
   const client = new RTorrent({ baseUrl });
