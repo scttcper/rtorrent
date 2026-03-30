@@ -4,6 +4,8 @@ TypeScript API wrapper for rTorrent XML-RPC interface
 
 DOCS: https://rtorrent.ep.workers.dev
 
+Normalized torrent types are shared through [@ctrl/shared-torrent](https://github.com/scttcper/shared-torrent).
+
 ## Installation
 
 ```bash
@@ -212,6 +214,14 @@ For complete API documentation, see the [rTorrent XML-RPC wiki](https://github.c
 - rTorrent 0.9.0 or higher
 - Node.js 18 or higher
 - TypeScript 5.0 or higher
+
+## See Also
+
+- shared types - [@ctrl/shared-torrent](https://github.com/scttcper/shared-torrent)
+- deluge - [@ctrl/deluge](https://github.com/scttcper/deluge)
+- transmission - [@ctrl/transmission](https://github.com/scttcper/transmission)
+- qbittorrent - [@ctrl/qbittorrent](https://github.com/scttcper/qbittorrent)
+- utorrent - [@ctrl/utorrent](https://github.com/scttcper/utorrent)
 
 ## License
 
