@@ -121,9 +121,9 @@ it('should add torrent with priority', async () => {
 
 it('should add torrent with directory', async () => {
   const client = new RTorrent({ baseUrl });
-  const path = '/downloads/linux/';
+  const directory = '/downloads/linux/';
   const res = await client.addTorrentFromFile(torrentFileBuffer, {
-    directory: path,
+    directory,
     start: false,
   });
   expect(res).toBe(true);
