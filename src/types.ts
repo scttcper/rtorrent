@@ -597,18 +597,6 @@ export interface RTorrentClient extends TorrentClient {
   getTorrentProperties(hash: string): Promise<Partial<RTorrentTorrent>>;
 
   /**
-   * Set torrent download rate limit
-   * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#throttle}
-   */
-  setDownloadRateLimit(hash: string, rate: number): Promise<boolean>;
-
-  /**
-   * Set torrent upload rate limit
-   * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#throttle}
-   */
-  setUploadRateLimit(hash: string, rate: number): Promise<boolean>;
-
-  /**
    * Get torrent download rate limit
    * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#throttle}
    */

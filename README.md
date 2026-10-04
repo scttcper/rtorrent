@@ -77,6 +77,14 @@ const normalizedTorrent = await rtorrent.normalizedAddTorrent('magnet:?xt=urn:bt
 await rtorrent.startTorrent('abc123...');
 await rtorrent.stopTorrent('abc123...');
 
+// Pause/resume (normalized)
+await rtorrent.pauseTorrent('abc123...');
+await rtorrent.resumeTorrent('abc123...');
+
+// Move in the queue
+await rtorrent.queueUp('abc123...');
+await rtorrent.queueDown('abc123...');
+
 // Set priority
 await rtorrent.setTorrentPriority('abc123...', RTorrentPriority.High);
 
@@ -107,10 +115,6 @@ const version = await rtorrent.getVersion();
 ### Rate Limiting
 
 ```typescript
-// Set download/upload rate limits (bytes per second)
-await rtorrent.setDownloadRateLimit('abc123...', 1024 * 1024); // 1 MB/s
-await rtorrent.setUploadRateLimit('abc123...', 512 * 1024); // 512 KB/s
-
 // Get current limits
 const downloadLimit = await rtorrent.getDownloadRateLimit('abc123...');
 const uploadLimit = await rtorrent.getUploadRateLimit('abc123...');
@@ -217,11 +221,19 @@ For complete API documentation, see the [rTorrent XML-RPC wiki](https://github.c
 
 ## See Also
 
+All of the following npm modules provide the same normalized functions along with supporting the unique apis for each client.
+
 - shared types - [@ctrl/shared-torrent](https://github.com/scttcper/shared-torrent)
 - deluge - [@ctrl/deluge](https://github.com/scttcper/deluge)
 - transmission - [@ctrl/transmission](https://github.com/scttcper/transmission)
 - qbittorrent - [@ctrl/qbittorrent](https://github.com/scttcper/qbittorrent)
 - utorrent - [@ctrl/utorrent](https://github.com/scttcper/utorrent)
+
+Usenet clients with the same normalized approach:
+
+- usenet shared types - [@ctrl/shared-usenet](https://github.com/scttcper/shared-usenet)
+- nzbget - [@ctrl/nzbget](https://github.com/scttcper/nzbget)
+- sabnzbd - [@ctrl/sabnzbd](https://github.com/scttcper/sabnzbd)
 
 ## License
 
