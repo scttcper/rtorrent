@@ -7,7 +7,7 @@ import type {
   TorrentClient,
   TorrentClientState,
 } from '@ctrl/shared-torrent';
-import { hash } from '@ctrl/torrent-file';
+import { hash as torrentFileHash } from '@ctrl/torrent-file';
 import { ofetch } from 'ofetch';
 import type { Jsonify } from 'type-fest';
 import { joinURL } from 'ufo';
@@ -571,7 +571,7 @@ export class RTorrent implements TorrentClient {
       if (!isUint8Array(torrent)) {
         torrent = stringToUint8Array(torrent);
       }
-      torrentHash = hash(torrent);
+      torrentHash = torrentFileHash(torrent);
       await this.addTorrent(torrent, { rtorrent: rtorrentOptions });
     }
 
@@ -580,8 +580,8 @@ export class RTorrent implements TorrentClient {
     const delayMs = 500;
 
     for (let i = 0; i < maxAttempts; i++) {
-      const torrent = await this.getTorrentRaw(torrentHash);
-      if (torrent !== null) {
+      const found = await this.getTorrentRaw(torrentHash);
+      if (found !== null) {
         return this.getTorrent(torrentHash);
       }
       await new Promise(resolve => {
