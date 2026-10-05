@@ -571,25 +571,25 @@ export class RTorrent implements RTorrentClient {
    * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-throttle-down}
    */
   async setThrottleGroup(name: string, downKiB?: number, upKiB?: number): Promise<boolean> {
-    const requests: Array<Promise<number>> = [];
+    const responses: number[] = [];
+    // sequential, both calls can create the group
     if (downKiB !== undefined) {
-      requests.push(
-        this.xmlRpcRequest<number>({
+      responses.push(
+        await this.xmlRpcRequest<number>({
           methodName: 'throttle.down',
           params: ['', name, String(downKiB)],
         }),
       );
     }
     if (upKiB !== undefined) {
-      requests.push(
-        this.xmlRpcRequest<number>({
+      responses.push(
+        await this.xmlRpcRequest<number>({
           methodName: 'throttle.up',
           params: ['', name, String(upKiB)],
         }),
       );
     }
 
-    const responses = await Promise.all(requests);
     return responses.every(response => response === 0);
   }
 
