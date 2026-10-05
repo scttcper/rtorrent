@@ -56,6 +56,11 @@ describe('normalizeTorrentData', () => {
       dateAdded: new Date(1_791_170_471 * 1000).toISOString(),
       dateCompleted: undefined,
       queuePosition: 0,
+      eta: -1,
+      label: undefined,
+      connectedPeers: 0,
+      totalPeers: 0,
+      totalSeeds: 0,
       totalSelected: 1_953_349_632,
       totalSize: 1_953_349_632,
     });

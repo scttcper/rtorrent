@@ -280,7 +280,7 @@ it('should return normalized torrent data', async () => {
   expect(Array.isArray(torrent.tags)).toBe(true);
   expect(typeof torrent.dateAdded).toBe('string');
   expect(torrent.dateCompleted).toBeUndefined();
-  expect(typeof torrent.label).toBe('string');
+  expect(torrent.label).toBeUndefined();
 
   // Peers and queue
   expect(typeof torrent.connectedPeers).toBe('number');

@@ -27,11 +27,13 @@ export function normalizeTorrentData(torrent: RTorrentTorrent): NormalizedTorren
       : NormalizedTorrentState.downloading;
   }
 
-  // Calculate ETA in seconds
-  const eta =
-    torrent.downRate > 0 && torrent.leftBytes > 0
-      ? Math.round(torrent.leftBytes / torrent.downRate)
-      : 0;
+  // seconds left at the current rate, -1 when not downloading
+  let eta = -1;
+  if (torrent.isComplete) {
+    eta = 0;
+  } else if (torrent.downRate > 0) {
+    eta = Math.round(torrent.leftBytes / torrent.downRate);
+  }
 
   // Convert ratio from thousandths to decimal
   const ratio = torrent.ratio / 1000;
@@ -54,7 +56,7 @@ export function normalizeTorrentData(torrent: RTorrentTorrent): NormalizedTorren
     dateAdded,
     isCompleted,
     progress,
-    label: torrent.custom1 || '',
+    label: torrent.custom1 || undefined,
     tags: [],
     dateCompleted,
     savePath,
@@ -62,10 +64,11 @@ export function normalizeTorrentData(torrent: RTorrentTorrent): NormalizedTorren
     downloadSpeed: torrent.downRate,
     // rTorrent has no queue, priority is available in raw
     queuePosition: 0,
-    connectedPeers: torrent.peersConnected,
+    // d.peers_complete is connected seeds, rTorrent only knows swarm sizes from tracker scrapes
+    connectedPeers: torrent.peersConnected - torrent.peersComplete,
     connectedSeeds: torrent.peersComplete,
-    totalPeers: torrent.peersAccounted,
-    totalSeeds: torrent.peersComplete,
+    totalPeers: 0,
+    totalSeeds: 0,
     totalSelected: torrent.sizeBytes,
     totalSize: torrent.sizeBytes,
     totalUploaded: torrent.upTotal,
