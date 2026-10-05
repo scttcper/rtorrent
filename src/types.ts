@@ -39,7 +39,6 @@ export interface RTorrentState extends TorrentClientState {
    */
   version?: {
     version: string;
-    isVersion090OrHigher: boolean;
   };
 }
 
@@ -67,8 +66,27 @@ export enum RTorrentPriority {
 }
 
 /**
- * rTorrent torrent state
- * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#state}
+ * rTorrent file priority levels, set with {@link RTorrentClient.setFilePriority}
+ * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#f-commands}
+ */
+export enum RTorrentFilePriority {
+  /**
+   * Do not download
+   */
+  Off = 0,
+  /**
+   * Normal priority
+   */
+  Normal = 1,
+  /**
+   * High priority
+   */
+  High = 2,
+}
+
+/**
+ * rTorrent torrent state from `d.state`. A started torrent can still be paused (`d.is_active` is 0)
+ * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-d-state}
  */
 export enum RTorrentTorrentState {
   /**
@@ -79,18 +97,16 @@ export enum RTorrentTorrentState {
    * Torrent is started
    */
   Started = 1,
-  /**
-   * Torrent is checking
-   */
-  Checking = 2,
-  /**
-   * Torrent is starting
-   */
-  Starting = 3,
-  /**
-   * Torrent is stopping
-   */
-  Stopping = 4,
+}
+
+/**
+ * rTorrent tracker type from `t.type`
+ * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#t-commands}
+ */
+export enum RTorrentTrackerType {
+  Http = 1,
+  Udp = 2,
+  Dht = 3,
 }
 
 /**
@@ -108,7 +124,7 @@ export interface RTorrentTorrent {
    */
   hash: string;
   /**
-   * Base download path
+   * `d.directory`, the parent directory for single-file torrents and the torrent's own folder for multi-file torrents
    */
   basePath: string;
   /**
@@ -240,6 +256,10 @@ export interface RTorrentTorrent {
    */
   chunksHashed: number;
   /**
+   * Unix time the torrent was added
+   */
+  loadDate: number;
+  /**
    * Associated views
    */
   views: string[];
@@ -270,7 +290,11 @@ export interface RTorrentSystemInfo {
  */
 export interface RTorrentFile {
   /**
-   * File path
+   * File index, used by {@link RTorrentClient.setFilePriority}
+   */
+  index: number;
+  /**
+   * File path relative to the torrent directory
    */
   path: string;
   /**
@@ -280,7 +304,7 @@ export interface RTorrentFile {
   /**
    * File priority
    */
-  priority: RTorrentPriority;
+  priority: RTorrentFilePriority;
   /**
    * Whether file is completed
    */
@@ -301,33 +325,41 @@ export interface RTorrentFile {
  */
 export interface RTorrentTracker {
   /**
+   * Tracker index, used by {@link RTorrentClient.setTrackerEnabled}
+   */
+  index: number;
+  /**
    * Tracker URL
    */
   url: string;
   /**
-   * Tracker status
+   * Tracker type
    */
-  status: string;
+  type: RTorrentTrackerType;
   /**
-   * Tracker message
+   * Whether the tracker is enabled
    */
-  message: string;
+  isEnabled: boolean;
   /**
-   * Number of peers
+   * Number of peers returned by the last announce
    */
   peers: number;
   /**
-   * Number of seeds
+   * Number of seeds from the last scrape
    */
   seeds: number;
   /**
-   * Number of leechers
+   * Number of leechers from the last scrape
    */
   leechers: number;
   /**
-   * Number of completed downloads
+   * Number of completed downloads from the last scrape
    */
   completed: number;
+  /**
+   * Number of failed requests since the last success
+   */
+  failedCounter: number;
 }
 
 /**
@@ -348,7 +380,7 @@ export interface RTorrentPeer {
    */
   port: number;
   /**
-   * Peer client name
+   * Peer client name and version
    */
   client: string;
   /**
@@ -360,10 +392,6 @@ export interface RTorrentPeer {
    */
   upRate: number;
   /**
-   * Peer flags
-   */
-  flags: string;
-  /**
    * Bytes downloaded from peer
    */
   bytesDownloaded: number;
@@ -371,6 +399,18 @@ export interface RTorrentPeer {
    * Bytes uploaded to peer
    */
   bytesUploaded: number;
+  /**
+   * Percent of the torrent the peer has, 0-100
+   */
+  completedPercent: number;
+  /**
+   * Whether the connection is encrypted
+   */
+  isEncrypted: boolean;
+  /**
+   * Whether the peer connected to us
+   */
+  isIncoming: boolean;
 }
 
 /**
@@ -383,7 +423,7 @@ export interface RTorrentView {
    */
   name: string;
   /**
-   * Number of torrents in view
+   * Number of torrents in view from `view.size`
    */
   count: number;
 }
@@ -519,10 +559,10 @@ export interface RTorrentClient extends TorrentClient {
   addTorrentFromFile(fileContent: Uint8Array, options?: AddTorrentFileOptions): Promise<boolean>;
 
   /**
-   * Remove torrent
+   * Remove torrent, throws when a torrent doesn't exist. Deleting files is not supported and throws
    * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#erase}
    */
-  removeTorrent(hash: string): Promise<boolean>;
+  removeTorrent(hash: string | string[], deleteFiles?: boolean): Promise<void>;
 
   /**
    * Start torrent
@@ -535,6 +575,24 @@ export interface RTorrentClient extends TorrentClient {
    * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#stop}
    */
   stopTorrent(hash: string): Promise<boolean>;
+
+  /**
+   * Pause torrent with `d.stop`
+   * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#stop}
+   */
+  pauseTorrent(hash: string | string[]): Promise<void>;
+
+  /**
+   * Resume a stopped or paused torrent with `d.start` and `d.resume`
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-d-start}
+   */
+  resumeTorrent(hash: string | string[]): Promise<void>;
+
+  /**
+   * Recheck torrent data
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-d-check-hash}
+   */
+  checkHash(hash: string): Promise<boolean>;
 
   /**
    * Set torrent priority
@@ -555,10 +613,22 @@ export interface RTorrentClient extends TorrentClient {
   getTorrentFiles(hash: string): Promise<RTorrentFile[]>;
 
   /**
+   * Set the priority of a file by its index
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#f-commands}
+   */
+  setFilePriority(hash: string, index: number, priority: RTorrentFilePriority): Promise<boolean>;
+
+  /**
    * Get torrent trackers
    * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#trackers}
    */
   getTorrentTrackers(hash: string): Promise<RTorrentTracker[]>;
+
+  /**
+   * Enable or disable a tracker by its index
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#t-commands}
+   */
+  setTrackerEnabled(hash: string, index: number, enabled: boolean): Promise<boolean>;
 
   /**
    * Get torrent peers
@@ -597,16 +667,52 @@ export interface RTorrentClient extends TorrentClient {
   getTorrentProperties(hash: string): Promise<Partial<RTorrentTorrent>>;
 
   /**
-   * Get torrent download rate limit
-   * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#throttle}
+   * Get the download limit in bytes/s of the torrent's throttle group
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#throttle-commands}
    */
   getDownloadRateLimit(hash: string): Promise<number>;
 
   /**
-   * Get torrent upload rate limit
-   * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#throttle}
+   * Get the upload limit in bytes/s of the torrent's throttle group
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#throttle-commands}
    */
   getUploadRateLimit(hash: string): Promise<number>;
+
+  /**
+   * Create or update a named throttle group, limits are in KiB/s
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#throttle-commands}
+   */
+  setThrottleGroup(name: string, downKiB?: number, upKiB?: number): Promise<boolean>;
+
+  /**
+   * Assign a torrent to a throttle group, the torrent must be stopped
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-d-throttle-name}
+   */
+  setTorrentThrottle(hash: string, name: string): Promise<boolean>;
+
+  /**
+   * Get the global download limit in bytes/s, 0 is unlimited
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#throttle-commands}
+   */
+  getGlobalDownloadRateLimit(): Promise<number>;
+
+  /**
+   * Set the global download limit in bytes/s, 0 is unlimited
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#throttle-commands}
+   */
+  setGlobalDownloadRateLimit(bytesPerSecond: number): Promise<boolean>;
+
+  /**
+   * Get the global upload limit in bytes/s, 0 is unlimited
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#throttle-commands}
+   */
+  getGlobalUploadRateLimit(): Promise<number>;
+
+  /**
+   * Set the global upload limit in bytes/s, 0 is unlimited
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#throttle-commands}
+   */
+  setGlobalUploadRateLimit(bytesPerSecond: number): Promise<boolean>;
 }
 
 /**

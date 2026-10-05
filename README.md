@@ -12,6 +12,8 @@ Normalized torrent types are shared through [@ctrl/shared-torrent](https://githu
 npm install @ctrl/rtorrent
 ```
 
+Requires Node.js 24 or newer.
+
 ## Usage
 
 ### Basic Setup
@@ -77,9 +79,12 @@ const normalizedTorrent = await rtorrent.normalizedAddTorrent('magnet:?xt=urn:bt
 await rtorrent.startTorrent('abc123...');
 await rtorrent.stopTorrent('abc123...');
 
-// Pause/resume (normalized)
+// Pause/resume (normalized), resume also undoes ruTorrent's d.pause
 await rtorrent.pauseTorrent('abc123...');
 await rtorrent.resumeTorrent('abc123...');
+
+// Recheck data
+await rtorrent.checkHash('abc123...');
 
 // Move in the queue
 await rtorrent.queueUp('abc123...');
@@ -91,8 +96,8 @@ await rtorrent.setTorrentPriority('abc123...', RTorrentPriority.High);
 // Set label/category
 await rtorrent.setTorrentLabel('abc123...', 'completed');
 
-// Remove torrent
-await rtorrent.removeTorrent('abc123...', false); // false = don't delete files
+// Remove one or more torrents, throws if a torrent doesn't exist
+await rtorrent.removeTorrent(['abc123...', 'def456...'], false); // false = don't delete files
 ```
 
 ### Getting Detailed Information
@@ -101,8 +106,12 @@ await rtorrent.removeTorrent('abc123...', false); // false = don't delete files
 // Get torrent files
 const files = await rtorrent.getTorrentFiles('abc123...');
 
+// Skip a file, file priorities are 0 off, 1 normal, 2 high
+await rtorrent.setFilePriority('abc123...', files[0].index, RTorrentFilePriority.Off);
+
 // Get torrent trackers
 const trackers = await rtorrent.getTorrentTrackers('abc123...');
+await rtorrent.setTrackerEnabled('abc123...', trackers[0].index, false);
 
 // Get torrent peers
 const peers = await rtorrent.getTorrentPeers('abc123...');
@@ -114,8 +123,19 @@ const version = await rtorrent.getVersion();
 
 ### Rate Limiting
 
+rTorrent has no per-torrent limits. Torrents are assigned to named [throttle groups](https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#throttle-commands) and torrents without a group use the global limit.
+
 ```typescript
-// Get current limits
+// Global limits in bytes/s, 0 is unlimited
+await rtorrent.setGlobalDownloadRateLimit(1024 * 1024);
+await rtorrent.setGlobalUploadRateLimit(512 * 1024);
+
+// Create a throttle group (KiB/s) and assign a stopped torrent to it
+await rtorrent.setThrottleGroup('slow', 100, 50);
+await rtorrent.stopTorrent('abc123...');
+await rtorrent.setTorrentThrottle('abc123...', 'slow');
+
+// Limit of the torrent's throttle group in bytes/s
 const downloadLimit = await rtorrent.getDownloadRateLimit('abc123...');
 const uploadLimit = await rtorrent.getUploadRateLimit('abc123...');
 ```
@@ -175,11 +195,10 @@ enum RTorrentPriority {
 enum RTorrentTorrentState {
   Stopped = 0,
   Started = 1,
-  Checking = 2,
-  Starting = 3,
-  Stopping = 4,
 }
 ```
+
+A started torrent can still be paused, check `isActive`.
 
 ## Testing with Docker
 
@@ -204,7 +223,7 @@ The XML-RPC endpoint will be available at `http://localhost:8080/RPC2`.
 
 This library communicates with rTorrent using its XML-RPC interface. Key methods used:
 
-- `d.multicall2` - Get torrent information
+- `d.multicall2` - Get torrent information, still available on rTorrent 0.16 and supported by older versions that don't have `d.multicall`
 - `load.start` / `load.normal` - Add torrents from URL
 - `load.raw_start` / `load.raw` - Add torrents from file
 - `d.erase` - Remove torrents
@@ -213,11 +232,20 @@ This library communicates with rTorrent using its XML-RPC interface. Key methods
 
 For complete API documentation, see the [rTorrent XML-RPC wiki](https://github.com/rakshasa/rtorrent/wiki/RPC-Setup-XMLRPC).
 
+rTorrent 0.16.9+ lets the SCGI proxy mark connections with the `UNTRUSTED_CONNECTION` header, which limits them to an allowlist of safe methods. Write commands this library uses (adding, removing, labeling, throttling) can fault on those connections, so point the client at a trusted endpoint. See the [0.16.9 release notes](https://github.com/rakshasa/rtorrent/releases/tag/v0.16.9).
+
 ## Compatibility
 
 - rTorrent 0.9.0 or higher
-- Node.js 18 or higher
+- Node.js 24 or higher
 - TypeScript 5.0 or higher
+
+## Differences from the other clients
+
+- `label` is stored in `d.custom1`, the same field ruTorrent uses
+- `removeTorrent(id, true)` throws, rTorrent's API can't delete files. Radarr removes them from disk itself
+- rTorrent has no queue, `queueUp`/`queueDown` change the torrent priority and `queuePosition` is always `0`
+- `dateAdded` is when rTorrent loaded the torrent (`d.load_date`), not the .torrent creation date
 
 ## See Also
 

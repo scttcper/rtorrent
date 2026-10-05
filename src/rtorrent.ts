@@ -4,8 +4,6 @@ import type {
   AllClientData,
   Label,
   NormalizedTorrent,
-  TorrentClient,
-  TorrentClientState,
 } from '@ctrl/shared-torrent';
 import { hash as torrentFileHash } from '@ctrl/torrent-file';
 import { ofetch } from 'ofetch';
@@ -18,23 +16,21 @@ import {
   AddTorrentFileOptions,
   AddTorrentOptions,
   AddTorrentUrlOptions,
+  RTorrentClient,
   RTorrentConfig,
+  RTorrentFile,
+  RTorrentFilePriority,
   RTorrentMethodCall,
   RTorrentPeer,
   RTorrentPriority,
+  RTorrentState,
   RTorrentSystemInfo,
   RTorrentTorrent,
   RTorrentTracker,
+  RTorrentTrackerType,
   RTorrentView,
 } from './types.js';
-import { isVersionGreater, buildXmlRpcRequest, parseXmlRpcResponse } from './xmlrpcUtils.js';
-
-interface RTorrentState extends TorrentClientState {
-  version?: {
-    version: string;
-    isVersion090OrHigher: boolean;
-  };
-}
+import { buildXmlRpcRequest, parseXmlRpcResponse } from './xmlrpcUtils.js';
 
 const defaults: RTorrentConfig = {
   baseUrl: 'http://localhost:8080',
@@ -45,7 +41,11 @@ const defaults: RTorrentConfig = {
   password: '',
 };
 
-export class RTorrent implements TorrentClient {
+function toHashes(hash: string | string[]): string[] {
+  return Array.isArray(hash) ? hash : [hash];
+}
+
+export class RTorrent implements RTorrentClient {
   /**
    * Create a new RTorrent client from a state
    */
@@ -103,14 +103,7 @@ export class RTorrent implements TorrentClient {
       params: [],
     });
 
-    // Cache version info
-    if (!this.state.version?.version) {
-      const cleanVersion = version.replace(/^v/, '').split('-')[0]!;
-      this.state.version = {
-        version,
-        isVersion090OrHigher: cleanVersion === '0.9.0' || isVersionGreater(cleanVersion, '0.9.0'),
-      };
-    }
+    this.state.version = { version };
 
     return version;
   }
@@ -160,6 +153,7 @@ export class RTorrent implements TorrentClient {
         'd.skip.total=', // skip total
         'd.hashing=', // hashing
         'd.chunks_hashed=', // chunks hashed
+        'd.load_date=', // time the torrent was added
       ],
     };
 
@@ -293,6 +287,20 @@ export class RTorrent implements TorrentClient {
   }
 
   /**
+   * Recheck torrent data
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-d-check-hash}
+   */
+  async checkHash(hash: string): Promise<boolean> {
+    const methodCall: RTorrentMethodCall = {
+      methodName: 'd.check_hash',
+      params: [hash],
+    };
+
+    const response = await this.xmlRpcRequest<number>(methodCall);
+    return response === 0;
+  }
+
+  /**
    * Set torrent priority
    * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#priority}
    */
@@ -324,7 +332,7 @@ export class RTorrent implements TorrentClient {
    * Get torrent files
    * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#files}
    */
-  async getTorrentFiles(hash: string): Promise<unknown[]> {
+  async getTorrentFiles(hash: string): Promise<RTorrentFile[]> {
     const methodCall: RTorrentMethodCall = {
       methodName: 'f.multicall',
       params: [
@@ -338,7 +346,39 @@ export class RTorrent implements TorrentClient {
       ],
     };
 
-    return this.xmlRpcRequest<unknown[][]>(methodCall);
+    const response = await this.xmlRpcRequest<unknown[][]>(methodCall);
+    return response.map((row, index) => ({
+      index,
+      path: row[0] as string,
+      size: row[1] as number,
+      priority: row[2] as RTorrentFilePriority,
+      isCompleted: row[3] === row[4],
+      completedChunks: row[3] as number,
+      totalChunks: row[4] as number,
+    }));
+  }
+
+  /**
+   * Set the priority of a file by its index in {@link getTorrentFiles}
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-f-priority-set}
+   */
+  async setFilePriority(
+    hash: string,
+    index: number,
+    priority: RTorrentFilePriority,
+  ): Promise<boolean> {
+    await this.xmlRpcRequest<number>({
+      methodName: 'f.priority.set',
+      params: [`${hash}:f${index}`, priority],
+    });
+
+    // file priorities are only applied to the download after d.update_priorities
+    // https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-d-update-priorities
+    const response = await this.xmlRpcRequest<number>({
+      methodName: 'd.update_priorities',
+      params: [hash],
+    });
+    return response === 0;
   }
 
   /**
@@ -348,19 +388,46 @@ export class RTorrent implements TorrentClient {
   async getTorrentTrackers(hash: string): Promise<RTorrentTracker[]> {
     const methodCall: RTorrentMethodCall = {
       methodName: 't.multicall',
-      params: [hash, '', 't.url=', 't.is_enabled=', 't.is_open=', 't.is_usable=', 't.can_scrape='],
+      params: [
+        hash,
+        '',
+        't.url=',
+        't.type=',
+        't.is_enabled=',
+        't.latest_sum_peers=',
+        't.scrape_complete=',
+        't.scrape_incomplete=',
+        't.scrape_downloaded=',
+        't.failed_counter=',
+      ],
     };
 
     const response = await this.xmlRpcRequest<unknown[][]>(methodCall);
-    return response.map(row => ({
+    return response.map((row, index) => ({
+      index,
       url: row[0] as string,
-      status: row[1] as string,
-      message: '',
-      peers: 0,
-      seeds: 0,
-      leechers: 0,
-      completed: 0,
+      type: row[1] as RTorrentTrackerType,
+      isEnabled: row[2] === 1,
+      peers: row[3] as number,
+      seeds: row[4] as number,
+      leechers: row[5] as number,
+      completed: row[6] as number,
+      failedCounter: row[7] as number,
     }));
+  }
+
+  /**
+   * Enable or disable a tracker by its index in {@link getTorrentTrackers}
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-t-is-enabled-set}
+   */
+  async setTrackerEnabled(hash: string, index: number, enabled: boolean): Promise<boolean> {
+    const methodCall: RTorrentMethodCall = {
+      methodName: 't.is_enabled.set',
+      params: [`${hash}:t${index}`, enabled ? 1 : 0],
+    };
+
+    const response = await this.xmlRpcRequest<number>(methodCall);
+    return response === 0;
   }
 
   /**
@@ -376,13 +443,14 @@ export class RTorrent implements TorrentClient {
         'p.id=',
         'p.address=',
         'p.port=',
-        'p.client=',
+        'p.client_version=',
         'p.down_rate=',
         'p.up_rate=',
-        'p.peer_rate=',
-        'p.peer_total=',
-        'p.peer_downloaded=',
-        'p.peer_uploaded=',
+        'p.down_total=',
+        'p.up_total=',
+        'p.completed_percent=',
+        'p.is_encrypted=',
+        'p.is_incoming=',
       ],
     };
 
@@ -394,9 +462,11 @@ export class RTorrent implements TorrentClient {
       client: row[3] as string,
       downRate: row[4] as number,
       upRate: row[5] as number,
-      flags: '',
-      bytesDownloaded: row[8] as number,
-      bytesUploaded: row[9] as number,
+      bytesDownloaded: row[6] as number,
+      bytesUploaded: row[7] as number,
+      completedPercent: row[8] as number,
+      isEncrypted: row[9] === 1,
+      isIncoming: row[10] === 1,
     }));
   }
 
@@ -410,8 +480,13 @@ export class RTorrent implements TorrentClient {
       params: [],
     };
 
-    const response = await this.xmlRpcRequest<string[]>(methodCall);
-    return response.map(name => ({ name, count: 0 }));
+    const names = await this.xmlRpcRequest<string[]>(methodCall);
+    return Promise.all(
+      names.map(async name => ({
+        name,
+        count: await this.xmlRpcRequest<number>({ methodName: 'view.size', params: ['', name] }),
+      })),
+    );
   }
 
   /**
@@ -470,29 +545,105 @@ export class RTorrent implements TorrentClient {
   }
 
   /**
-   * Get torrent download rate limit
-   * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#throttle}
+   * Get the download limit in bytes/s of the torrent's throttle group.
+   * Torrents without a group use the global limit, 0 is unlimited and -1 means the group has no download limit.
+   * rTorrent has no per-torrent limits, torrents are assigned to named throttle groups instead.
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#throttle-commands}
    */
   async getDownloadRateLimit(hash: string): Promise<number> {
-    const methodCall: RTorrentMethodCall = {
-      methodName: 'd.throttle.down',
-      params: [hash],
-    };
-
-    return this.xmlRpcRequest<number>(methodCall);
+    const name = await this.getThrottleName(hash);
+    return this.xmlRpcRequest<number>({ methodName: 'throttle.down.max', params: ['', name] });
   }
 
   /**
-   * Get torrent upload rate limit
-   * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#throttle}
+   * Get the upload limit in bytes/s of the torrent's throttle group.
+   * Torrents without a group use the global limit, 0 is unlimited and -1 means the group has no upload limit.
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#throttle-commands}
    */
   async getUploadRateLimit(hash: string): Promise<number> {
-    const methodCall: RTorrentMethodCall = {
-      methodName: 'd.throttle.up',
-      params: [hash],
-    };
+    const name = await this.getThrottleName(hash);
+    return this.xmlRpcRequest<number>({ methodName: 'throttle.up.max', params: ['', name] });
+  }
 
-    return this.xmlRpcRequest<number>(methodCall);
+  /**
+   * Create or update a named throttle group, limits are in KiB/s.
+   * Assign torrents to it with {@link setTorrentThrottle}
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-throttle-down}
+   */
+  async setThrottleGroup(name: string, downKiB?: number, upKiB?: number): Promise<boolean> {
+    const responses: number[] = [];
+    // sequential, both calls can create the group
+    if (downKiB !== undefined) {
+      responses.push(
+        await this.xmlRpcRequest<number>({
+          methodName: 'throttle.down',
+          params: ['', name, String(downKiB)],
+        }),
+      );
+    }
+    if (upKiB !== undefined) {
+      responses.push(
+        await this.xmlRpcRequest<number>({
+          methodName: 'throttle.up',
+          params: ['', name, String(upKiB)],
+        }),
+      );
+    }
+
+    return responses.every(response => response === 0);
+  }
+
+  /**
+   * Assign a torrent to a throttle group, an empty name removes it from its group.
+   * rTorrent only allows this while the torrent is stopped.
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-d-throttle-name-set}
+   */
+  async setTorrentThrottle(hash: string, name: string): Promise<boolean> {
+    const response = await this.xmlRpcRequest<number>({
+      methodName: 'd.throttle_name.set',
+      params: [hash, name],
+    });
+    return response === 0;
+  }
+
+  /**
+   * Get the global download limit in bytes/s, 0 is unlimited
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-throttle-global-down-max-rate}
+   */
+  async getGlobalDownloadRateLimit(): Promise<number> {
+    return this.xmlRpcRequest<number>({ methodName: 'throttle.global_down.max_rate', params: [] });
+  }
+
+  /**
+   * Set the global download limit in bytes/s, 0 is unlimited
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-throttle-global-down-max-rate}
+   */
+  async setGlobalDownloadRateLimit(bytesPerSecond: number): Promise<boolean> {
+    const response = await this.xmlRpcRequest<number>({
+      methodName: 'throttle.global_down.max_rate.set',
+      params: ['', bytesPerSecond],
+    });
+    return response === 0;
+  }
+
+  /**
+   * Get the global upload limit in bytes/s, 0 is unlimited
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-throttle-global-up-max-rate}
+   */
+  async getGlobalUploadRateLimit(): Promise<number> {
+    return this.xmlRpcRequest<number>({ methodName: 'throttle.global_up.max_rate', params: [] });
+  }
+
+  /**
+   * Set the global upload limit in bytes/s, 0 is unlimited
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-throttle-global-up-max-rate}
+   */
+  async setGlobalUploadRateLimit(bytesPerSecond: number): Promise<boolean> {
+    const response = await this.xmlRpcRequest<number>({
+      methodName: 'throttle.global_up.max_rate.set',
+      params: ['', bytesPerSecond],
+    });
+    return response === 0;
   }
 
   // Shared torrent interface methods
@@ -592,34 +743,55 @@ export class RTorrent implements TorrentClient {
     throw new Error(`Torrent with hash ${torrentHash} not found after ${maxAttempts * delayMs}ms`);
   }
 
-  async removeTorrent(hash: string, deleteFiles = false): Promise<boolean> {
+  async removeTorrent(hash: string | string[], deleteFiles = false): Promise<void> {
     if (deleteFiles) {
       // rTorrent doesn't have a direct way to delete files,
       // ruTorrent could potentially handle, radarr does this via filesystem
       throw new Error('rTorrent does not support deleting files via API');
     }
-    return this.removeTorrentInternal(hash);
+
+    for (const h of toHashes(hash)) {
+      await this.removeTorrentInternal(h);
+    }
   }
 
-  async pauseTorrent(hash: string): Promise<boolean> {
-    return this.stopTorrent(hash);
+  async pauseTorrent(hash: string | string[]): Promise<void> {
+    for (const h of toHashes(hash)) {
+      await this.stopTorrent(h);
+    }
   }
 
-  async resumeTorrent(hash: string): Promise<boolean> {
-    return this.startTorrent(hash);
+  /**
+   * Resumes stopped torrents and torrents paused with `d.pause` (ruTorrent's pause button).
+   * `d.start` does nothing for a paused torrent and `d.resume` does nothing for a stopped one.
+   * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-d-resume}
+   */
+  async resumeTorrent(hash: string | string[]): Promise<void> {
+    for (const h of toHashes(hash)) {
+      await this.startTorrent(h);
+      await this.xmlRpcRequest<number>({ methodName: 'd.resume', params: [h] });
+    }
   }
 
-  async queueUp(hash: string): Promise<boolean> {
+  async queueUp(hash: string | string[]): Promise<void> {
     // rTorrent doesn't have explicit queue up/down, use priority instead
-    return this.setTorrentPriority(hash, RTorrentPriority.High);
+    for (const h of toHashes(hash)) {
+      await this.setTorrentPriority(h, RTorrentPriority.High);
+    }
   }
 
-  async queueDown(hash: string): Promise<boolean> {
+  async queueDown(hash: string | string[]): Promise<void> {
     // rTorrent doesn't have explicit queue up/down, use priority instead
-    return this.setTorrentPriority(hash, RTorrentPriority.Low);
+    for (const h of toHashes(hash)) {
+      await this.setTorrentPriority(h, RTorrentPriority.Low);
+    }
   }
 
   // Private helper methods
+
+  private async getThrottleName(hash: string): Promise<string> {
+    return this.xmlRpcRequest<string>({ methodName: 'd.throttle_name', params: [hash] });
+  }
 
   private async xmlRpcRequest<T>(methodCall: RTorrentMethodCall): Promise<T> {
     const url = joinURL(this.config.baseUrl, this.config.path ?? '');
@@ -684,6 +856,7 @@ export class RTorrent implements TorrentClient {
       skipTotal: row[32] as number,
       hashing: row[33] as number,
       chunksHashed: row[34] as number,
+      loadDate: row[35] as number,
       views: [],
     };
   }
