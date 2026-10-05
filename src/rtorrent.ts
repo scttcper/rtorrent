@@ -41,6 +41,10 @@ const defaults: RTorrentConfig = {
   password: '',
 };
 
+function toHashes(hash: string | string[]): string[] {
+  return Array.isArray(hash) ? hash : [hash];
+}
+
 export class RTorrent implements RTorrentClient {
   /**
    * Create a new RTorrent client from a state
@@ -739,17 +743,22 @@ export class RTorrent implements RTorrentClient {
     throw new Error(`Torrent with hash ${torrentHash} not found after ${maxAttempts * delayMs}ms`);
   }
 
-  async removeTorrent(hash: string, deleteFiles = false): Promise<boolean> {
+  async removeTorrent(hash: string | string[], deleteFiles = false): Promise<void> {
     if (deleteFiles) {
       // rTorrent doesn't have a direct way to delete files,
       // ruTorrent could potentially handle, radarr does this via filesystem
       throw new Error('rTorrent does not support deleting files via API');
     }
-    return this.removeTorrentInternal(hash);
+
+    for (const h of toHashes(hash)) {
+      await this.removeTorrentInternal(h);
+    }
   }
 
-  async pauseTorrent(hash: string): Promise<boolean> {
-    return this.stopTorrent(hash);
+  async pauseTorrent(hash: string | string[]): Promise<void> {
+    for (const h of toHashes(hash)) {
+      await this.stopTorrent(h);
+    }
   }
 
   /**
@@ -757,20 +766,25 @@ export class RTorrent implements RTorrentClient {
    * `d.start` does nothing for a paused torrent and `d.resume` does nothing for a stopped one.
    * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-d-resume}
    */
-  async resumeTorrent(hash: string): Promise<boolean> {
-    await this.startTorrent(hash);
-    const response = await this.xmlRpcRequest<number>({ methodName: 'd.resume', params: [hash] });
-    return response === 0;
+  async resumeTorrent(hash: string | string[]): Promise<void> {
+    for (const h of toHashes(hash)) {
+      await this.startTorrent(h);
+      await this.xmlRpcRequest<number>({ methodName: 'd.resume', params: [h] });
+    }
   }
 
-  async queueUp(hash: string): Promise<boolean> {
+  async queueUp(hash: string | string[]): Promise<void> {
     // rTorrent doesn't have explicit queue up/down, use priority instead
-    return this.setTorrentPriority(hash, RTorrentPriority.High);
+    for (const h of toHashes(hash)) {
+      await this.setTorrentPriority(h, RTorrentPriority.High);
+    }
   }
 
-  async queueDown(hash: string): Promise<boolean> {
+  async queueDown(hash: string | string[]): Promise<void> {
     // rTorrent doesn't have explicit queue up/down, use priority instead
-    return this.setTorrentPriority(hash, RTorrentPriority.Low);
+    for (const h of toHashes(hash)) {
+      await this.setTorrentPriority(h, RTorrentPriority.Low);
+    }
   }
 
   // Private helper methods

@@ -559,10 +559,10 @@ export interface RTorrentClient extends TorrentClient {
   addTorrentFromFile(fileContent: Uint8Array, options?: AddTorrentFileOptions): Promise<boolean>;
 
   /**
-   * Remove torrent, deleting files is not supported and throws
+   * Remove torrent, throws when a torrent doesn't exist. Deleting files is not supported and throws
    * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#erase}
    */
-  removeTorrent(hash: string, deleteFiles?: boolean): Promise<boolean>;
+  removeTorrent(hash: string | string[], deleteFiles?: boolean): Promise<void>;
 
   /**
    * Start torrent
@@ -580,13 +580,13 @@ export interface RTorrentClient extends TorrentClient {
    * Pause torrent with `d.stop`
    * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#stop}
    */
-  pauseTorrent(hash: string): Promise<boolean>;
+  pauseTorrent(hash: string | string[]): Promise<void>;
 
   /**
    * Resume a stopped or paused torrent with `d.start` and `d.resume`
    * {@link https://rtorrent-docs.readthedocs.io/en/latest/cmd-ref.html#term-d-start}
    */
-  resumeTorrent(hash: string): Promise<boolean>;
+  resumeTorrent(hash: string | string[]): Promise<void>;
 
   /**
    * Recheck torrent data

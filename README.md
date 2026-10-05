@@ -94,8 +94,8 @@ await rtorrent.setTorrentPriority('abc123...', RTorrentPriority.High);
 // Set label/category
 await rtorrent.setTorrentLabel('abc123...', 'completed');
 
-// Remove torrent
-await rtorrent.removeTorrent('abc123...', false); // false = don't delete files
+// Remove one or more torrents, throws if a torrent doesn't exist
+await rtorrent.removeTorrent(['abc123...', 'def456...'], false); // false = don't delete files
 ```
 
 ### Getting Detailed Information

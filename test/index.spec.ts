@@ -196,8 +196,13 @@ it('should get torrent peers', async () => {
 it('should pause/resume torrent', async () => {
   const client = new RTorrent({ baseUrl });
   const torrentId = await setupTorrent(client);
-  expect(await client.pauseTorrent(torrentId)).toBeTruthy();
-  expect(await client.resumeTorrent(torrentId)).toBeTruthy();
+  await client.pauseTorrent(torrentId);
+  await client.resumeTorrent([torrentId]);
+});
+
+it('should throw when removing a torrent that does not exist', async () => {
+  const client = new RTorrent({ baseUrl });
+  await expect(client.removeTorrent('0'.repeat(40))).rejects.toThrow();
 });
 
 it('should set torrent priority', async () => {
@@ -432,15 +437,15 @@ it('should get view counts', async () => {
 it('should resume torrents stopped or paused with d.pause', async () => {
   const client = new RTorrent({ baseUrl });
   const torrentId = await setupTorrent(client);
-  expect(await client.pauseTorrent(torrentId)).toBe(true);
+  await client.pauseTorrent(torrentId);
   expect((await client.getTorrent(torrentId)).state).toBe(TorrentState.paused);
-  expect(await client.resumeTorrent(torrentId)).toBe(true);
+  await client.resumeTorrent(torrentId);
   expect((await client.getTorrentRaw(torrentId))?.isActive).toBe(true);
 
   // ruTorrent's pause button uses d.pause, which d.start does not undo
   await client['xmlRpcRequest']({ methodName: 'd.pause', params: [torrentId] });
   expect((await client.getTorrent(torrentId)).state).toBe(TorrentState.paused);
-  expect(await client.resumeTorrent(torrentId)).toBe(true);
+  await client.resumeTorrent(torrentId);
   expect((await client.getTorrentRaw(torrentId))?.isActive).toBe(true);
 });
 
