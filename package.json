@@ -42,7 +42,7 @@
   },
   "dependencies": {
     "@ctrl/magnet-link": "^5.0.1",
-    "@ctrl/shared-torrent": "^6.5.3",
+    "@ctrl/shared-torrent": "^6.5.4",
     "@ctrl/torrent-file": "^4.5.2",
     "fast-xml-parser": "^5.11.2",
     "form-data": "^4.0.6",
