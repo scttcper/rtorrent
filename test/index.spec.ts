@@ -91,6 +91,15 @@ it('should get version', async () => {
   expect(version).toBeTruthy();
   expect(typeof version).toBe('string');
 });
+it('should keep deprecated version and tracker fields', async () => {
+  const client = new RTorrent({ baseUrl });
+  await client.getVersion();
+  expect(client.state.version?.isVersion090OrHigher).toBe(true);
+  const torrentId = await setupTorrent(client);
+  const [tracker] = await client.getTorrentTrackers(torrentId);
+  expect(tracker!.message).toBe('');
+  expect(tracker!.status).toBeDefined();
+});
 
 it('should get system info', async () => {
   const client = new RTorrent({ baseUrl });

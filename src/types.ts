@@ -39,6 +39,10 @@ export interface RTorrentState extends TorrentClientState {
    */
   version?: {
     version: string;
+    /**
+     * @deprecated compare `version` instead
+     */
+    isVersion090OrHigher: boolean;
   };
 }
 
@@ -97,6 +101,18 @@ export enum RTorrentTorrentState {
    * Torrent is started
    */
   Started = 1,
+  /**
+   * @deprecated d.state is only ever 0 or 1, use `hashing` for checking
+   */
+  Checking = 2,
+  /**
+   * @deprecated d.state is only ever 0 or 1
+   */
+  Starting = 3,
+  /**
+   * @deprecated d.state is only ever 0 or 1
+   */
+  Stopping = 4,
 }
 
 /**
@@ -325,6 +341,14 @@ export interface RTorrentFile {
  */
 export interface RTorrentTracker {
   /**
+   * @deprecated was the raw `t.is_enabled` value, use `isEnabled`
+   */
+  status: string;
+  /**
+   * @deprecated always empty
+   */
+  message: string;
+  /**
    * Tracker index, used by {@link RTorrentClient.setTrackerEnabled}
    */
   index: number;
@@ -367,6 +391,10 @@ export interface RTorrentTracker {
  * {@link https://github.com/rakshasa/rtorrent/wiki/Commands#peers}
  */
 export interface RTorrentPeer {
+  /**
+   * @deprecated always empty
+   */
+  flags: string;
   /**
    * Peer ID
    */

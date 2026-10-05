@@ -99,7 +99,8 @@ export class RTorrent implements RTorrentClient {
       params: [],
     });
 
-    this.state.version = { version };
+    const [major = 0, minor = 0] = version.replace(/^v/, '').split('.').map(Number);
+    this.state.version = { version, isVersion090OrHigher: major > 0 || minor >= 9 };
 
     return version;
   }
@@ -404,6 +405,8 @@ export class RTorrent implements RTorrentClient {
       url: row[0] as string,
       type: row[1] as RTorrentTrackerType,
       isEnabled: row[2] === 1,
+      status: row[2] as string,
+      message: '',
       peers: row[3] as number,
       seeds: row[4] as number,
       leechers: row[5] as number,
@@ -463,6 +466,7 @@ export class RTorrent implements RTorrentClient {
       completedPercent: row[8] as number,
       isEncrypted: row[9] === 1,
       isIncoming: row[10] === 1,
+      flags: '',
     }));
   }
 
