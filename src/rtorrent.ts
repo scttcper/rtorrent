@@ -1,12 +1,13 @@
 import { magnetDecode } from '@ctrl/magnet-link';
-import type {
-  AddTorrentOptions as NormalizedAddTorrentOptions,
-  AllClientData,
-  Label,
-  NormalizedTorrent,
+import {
+  type AddTorrentOptions as NormalizedAddTorrentOptions,
+  type AllClientData,
+  type Label,
+  type NormalizedTorrent,
+  TorrentClientError,
 } from '@ctrl/shared-torrent';
 import { hash as torrentFileHash } from '@ctrl/torrent-file';
-import { ofetch } from 'ofetch';
+import { FetchError, ofetch } from 'ofetch';
 import type { Jsonify } from 'type-fest';
 import { joinURL } from 'ufo';
 import { isUint8Array, stringToUint8Array, stringToBase64 } from 'uint8array-extras';
@@ -178,7 +179,7 @@ export class RTorrent implements RTorrentClient {
   async getTorrent(hash: string): Promise<NormalizedTorrent> {
     const torrent = await this.getTorrentRaw(hash);
     if (!torrent) {
-      throw new Error('Torrent not found');
+      throw new TorrentClientError('Torrent not found', 'torrent_not_found');
     }
     return normalizeTorrentData(torrent);
   }
@@ -740,7 +741,10 @@ export class RTorrent implements RTorrentClient {
       });
     }
 
-    throw new Error(`Torrent with hash ${torrentHash} not found after ${maxAttempts * delayMs}ms`);
+    throw new TorrentClientError(
+      `Torrent with hash ${torrentHash} not found after ${maxAttempts * delayMs}ms`,
+      'torrent_not_found',
+    );
   }
 
   async removeTorrent(hash: string | string[], deleteFiles = false): Promise<void> {
@@ -814,6 +818,16 @@ export class RTorrent implements RTorrentClient {
       headers,
       body: xmlBody,
       timeout: this.config.timeout,
+    }).catch((error: unknown) => {
+      if (error instanceof FetchError) {
+        throw new TorrentClientError(
+          error.message,
+          error.status === 401 || error.status === 403 ? 'unauthorized' : 'request_failed',
+          { status: error.status, cause: error },
+        );
+      }
+
+      throw new TorrentClientError((error as Error).message, 'request_failed', { cause: error });
     });
 
     return parseXmlRpcResponse<T>(response);

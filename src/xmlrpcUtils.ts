@@ -1,3 +1,4 @@
+import { TorrentClientError } from '@ctrl/shared-torrent';
 import { XMLParser } from 'fast-xml-parser';
 
 import type { RTorrentFault } from './types.js';
@@ -130,5 +131,10 @@ export function parseXmlRpcResponse<T>(xml: string): T {
 export function handleXmlRpcFault(fault: any): never {
   const { faultCode, faultString } = parseXmlValue(fault.value) as RTorrentFault;
 
-  throw new Error(`XML-RPC Fault ${faultCode}: ${faultString}`);
+  // rTorrent faults every d.* command with this for an unknown hash
+  throw new TorrentClientError(
+    `XML-RPC Fault ${faultCode}: ${faultString}`,
+    faultString === 'Could not find info-hash.' ? 'torrent_not_found' : 'client_error',
+    { cause: { faultCode, faultString } },
+  );
 }

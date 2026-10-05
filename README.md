@@ -240,6 +240,22 @@ rTorrent 0.16.9+ lets the SCGI proxy mark connections with the `UNTRUSTED_CONNEC
 - Node.js 24 or higher
 - TypeScript 5.0 or higher
 
+## Errors
+
+Failed requests throw a `TorrentClientError` from [@ctrl/shared-torrent](https://github.com/scttcper/shared-torrent) with a `code` of `torrent_not_found`, `unauthorized`, `request_failed` or `client_error`, the http `status` when there is one and the original error as the `cause`. XML-RPC faults are `client_error`, except rTorrent's `Could not find info-hash.` which is `torrent_not_found`.
+
+```ts
+import { TorrentClientError } from '@ctrl/rtorrent';
+
+try {
+  await client.removeTorrent('torrent-hash');
+} catch (error) {
+  if (error instanceof TorrentClientError && error.code === 'torrent_not_found') {
+    // already removed
+  }
+}
+```
+
 ## Differences from the other clients
 
 - `label` is stored in `d.custom1`, the same field ruTorrent uses
