@@ -12,6 +12,8 @@ Normalized torrent types are shared through [@ctrl/shared-torrent](https://githu
 npm install @ctrl/rtorrent
 ```
 
+Requires Node.js 22 or newer.
+
 ## Usage
 
 ### Basic Setup
@@ -235,8 +237,15 @@ rTorrent 0.16.9+ lets the SCGI proxy mark connections with the `UNTRUSTED_CONNEC
 ## Compatibility
 
 - rTorrent 0.9.0 or higher
-- Node.js 18 or higher
+- Node.js 22 or higher
 - TypeScript 5.0 or higher
+
+## Differences from the other clients
+
+- `label` is stored in `d.custom1`, the same field ruTorrent uses
+- `removeTorrent(id, true)` throws, rTorrent's API can't delete files. Radarr removes them from disk itself
+- rTorrent has no queue, `queueUp`/`queueDown` change the torrent priority and `queuePosition` is always `0`
+- `dateAdded` is when rTorrent loaded the torrent (`d.load_date`), not the .torrent creation date
 
 ## See Also
 
