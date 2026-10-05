@@ -12,7 +12,7 @@ Normalized torrent types are shared through [@ctrl/shared-torrent](https://githu
 npm install @ctrl/rtorrent
 ```
 
-Requires Node.js 22 or newer.
+Requires Node.js 24 or newer.
 
 ## Usage
 
@@ -237,7 +237,7 @@ rTorrent 0.16.9+ lets the SCGI proxy mark connections with the `UNTRUSTED_CONNEC
 ## Compatibility
 
 - rTorrent 0.9.0 or higher
-- Node.js 22 or higher
+- Node.js 24 or higher
 - TypeScript 5.0 or higher
 
 ## Differences from the other clients
