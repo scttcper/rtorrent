@@ -474,13 +474,14 @@ it('should get torrent rate limits from its throttle group', async () => {
 
   expect(await client.setThrottleGroup('ctrl-slow', 100, 50)).toBe(true);
   expect(await client.setTorrentThrottle(multiFileHash, 'ctrl-slow')).toBe(true);
-  expect((await client.getTorrentRaw(multiFileHash))?.throttleName).toBe('ctrl-slow');
-  await pWaitFor(async () => (await client.getDownloadRateLimit(multiFileHash)) === 100 * 1024, {
-    timeout: 5000,
-    interval: 200,
-  });
-  expect(await client.getDownloadRateLimit(multiFileHash)).toBe(100 * 1024);
-  expect(await client.getUploadRateLimit(multiFileHash)).toBe(50 * 1024);
+  // compare everything at once so a failure shows every value
+  expect({
+    throttleName: (await client.getTorrentRaw(multiFileHash))?.throttleName,
+    down: await client.getDownloadRateLimit(multiFileHash),
+    up: await client.getUploadRateLimit(multiFileHash),
+    globalDown: await client.getGlobalDownloadRateLimit(),
+    globalUp: await client.getGlobalUploadRateLimit(),
+  }).toMatchObject({ throttleName: 'ctrl-slow', down: 100 * 1024, up: 50 * 1024 });
 });
 
 it('should set global rate limits', async () => {
