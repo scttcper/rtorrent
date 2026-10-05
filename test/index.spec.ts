@@ -11,6 +11,7 @@ import {
   RTorrentFilePriority,
   RTorrentPriority,
   RTorrentTrackerType,
+  TorrentClientError,
 } from '../src/index.js';
 
 const baseUrl = 'http://localhost:8080';
@@ -200,9 +201,32 @@ it('should pause/resume torrent', async () => {
   await client.resumeTorrent([torrentId]);
 });
 
-it('should throw when removing a torrent that does not exist', async () => {
+it('should throw torrent_not_found for a torrent that does not exist', async () => {
   const client = new RTorrent({ baseUrl });
-  await expect(client.removeTorrent('0'.repeat(40))).rejects.toThrow();
+  const missing = '0'.repeat(40);
+  const notFound = { name: 'TorrentClientError', code: 'torrent_not_found' };
+  await expect(client.getTorrent(missing)).rejects.toMatchObject(notFound);
+  await expect(client.pauseTorrent(missing)).rejects.toMatchObject(notFound);
+  await expect(client.resumeTorrent(missing)).rejects.toMatchObject(notFound);
+  await expect(client.queueUp(missing)).rejects.toMatchObject(notFound);
+  await expect(client.queueDown(missing)).rejects.toMatchObject(notFound);
+  await expect(client.removeTorrent(missing)).rejects.toMatchObject(notFound);
+});
+
+it('should throw client_error for other xml-rpc faults', async () => {
+  const client = new RTorrent({ baseUrl });
+  await expect(
+    client['xmlRpcRequest']({ methodName: 'not.a.method', params: [] }),
+  ).rejects.toMatchObject({
+    code: 'client_error',
+  });
+});
+
+it('should throw request_failed without a status when rtorrent is unreachable', async () => {
+  const client = new RTorrent({ baseUrl: 'http://127.0.0.1:1' });
+  const error = await client.getAllData().catch((error_: unknown) => error_);
+  expect(error).toBeInstanceOf(TorrentClientError);
+  expect(error).toMatchObject({ code: 'request_failed', status: undefined });
 });
 
 it('should set torrent priority', async () => {
