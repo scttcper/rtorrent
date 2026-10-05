@@ -1,12 +1,15 @@
 import { XMLParser } from 'fast-xml-parser';
 
+import type { RTorrentFault } from './types.js';
+
 // Centralized XML parser instance to share configuration across the project
 export const xmlParser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
   parseAttributeValue: true,
-  parseTagValue: true,
-  trimValues: true,
+  // keep string values as-is, numeric XML-RPC types are converted in parseXmlValue
+  parseTagValue: false,
+  trimValues: false,
 });
 
 export function escapeXml(str: string): string {
@@ -18,88 +21,58 @@ export function escapeXml(str: string): string {
     .replaceAll("'", '&#39;');
 }
 
-export function isVersionGreater(version1: string, version2: string): boolean {
-  const v1Parts = version1.split('.').map(Number);
-  const v2Parts = version2.split('.').map(Number);
+function toArray<T>(value: T | T[] | undefined): T[] {
+  if (value === undefined) {
+    return [];
+  }
+  return Array.isArray(value) ? value : [value];
+}
 
-  for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
-    const v1Part = v1Parts[i] || 0;
-    const v2Part = v2Parts[i] || 0;
-
-    if (v1Part > v2Part) {
-      return true;
-    }
-    if (v1Part < v2Part) {
-      return false;
-    }
+/**
+ * Converts a parsed XML-RPC `<value>` into a JS value
+ * {@link https://xmlrpc.com/spec.md}
+ */
+export function parseXmlValue(value: any): unknown {
+  // A <value> without a type element is a string
+  if (typeof value === 'string') {
+    return value;
   }
 
-  return false;
-}
-
-export function extractNumberValue(value: any): number | null {
-  const numValue = value.int ?? value.i4 ?? value.i8;
-  return numValue !== undefined ? Number(numValue) : null;
-}
-
-export function parseXmlValue(value: any): unknown {
-  if (value.string !== undefined) {
+  if ('string' in value) {
     return value.string;
   }
 
-  if ('int' in value || 'i4' in value || 'i8' in value) {
-    return extractNumberValue(value);
+  if ('i8' in value || 'i4' in value || 'int' in value) {
+    return Number(value.i8 ?? value.i4 ?? value.int);
   }
 
-  if (value.array) {
-    return parseXmlArrayFromParsed(value.array);
+  if ('double' in value) {
+    return Number(value.double);
   }
 
-  if (value.base64 !== undefined) {
+  if ('boolean' in value) {
+    return value.boolean === '1';
+  }
+
+  if ('array' in value) {
+    return toArray(value.array?.data?.value).map(item => parseXmlValue(item));
+  }
+
+  if ('struct' in value) {
+    return Object.fromEntries(
+      toArray<any>(value.struct?.member).map(member => [member.name, parseXmlValue(member.value)]),
+    );
+  }
+
+  if ('base64' in value) {
     return Buffer.from(value.base64, 'base64');
   }
 
+  if ('nil' in value) {
+    return null;
+  }
+
   throw new Error('Unable to parse XML-RPC response value');
-}
-
-export function parseXmlArrayFromParsed(array: any): unknown[][] {
-  const results: unknown[][] = [];
-
-  if (!array.data) {
-    return results;
-  }
-
-  const dataItems = Array.isArray(array.data) ? array.data : [array.data];
-
-  for (const dataItem of dataItems) {
-    const row = parseXmlArrayItem(dataItem);
-    if (row.length > 0) {
-      results.push(row);
-    }
-  }
-
-  return results;
-}
-
-export function parseXmlArrayItem(dataItem: any): unknown[] {
-  const row: unknown[] = [];
-
-  if (dataItem.value && dataItem.value.array) {
-    let rowData = dataItem.value.array.data;
-    if (rowData && rowData.value) {
-      rowData = rowData.value;
-    }
-    const values = Array.isArray(rowData) ? rowData : [rowData];
-    for (const value of values) {
-      row.push(parseXmlValue(value));
-    }
-  } else if (dataItem.value && Array.isArray(dataItem.value)) {
-    for (const value of dataItem.value) {
-      row.push(parseXmlValue(value));
-    }
-  }
-
-  return row;
 }
 
 export function buildXmlRpcRequest(methodCall: { methodName: string; params: unknown[] }): string {
@@ -141,7 +114,7 @@ export function parseXmlRpcResponse<T>(xml: string): T {
 
     // Extract response value
     const value = parsed.methodResponse?.params?.param?.value;
-    if (!value) {
+    if (value === undefined) {
       throw new Error('No value found in XML-RPC response');
     }
 
@@ -155,25 +128,7 @@ export function parseXmlRpcResponse<T>(xml: string): T {
 }
 
 export function handleXmlRpcFault(fault: any): never {
-  let faultCode = 'unknown';
-  let faultString = 'Unknown error';
-
-  if (fault.value?.struct?.member) {
-    const members = Array.isArray(fault.value.struct.member)
-      ? fault.value.struct.member
-      : [fault.value.struct.member];
-
-    const faultCodeMember = members.find((m: any) => m.name === 'faultCode');
-    const faultStringMember = members.find((m: any) => m.name === 'faultString');
-
-    if (faultCodeMember?.value) {
-      const code = extractNumberValue(faultCodeMember.value);
-      faultCode = code !== null ? String(code) : 'unknown';
-    }
-    if (faultStringMember?.value) {
-      faultString = faultStringMember.value.string || 'Unknown error';
-    }
-  }
+  const { faultCode, faultString } = parseXmlValue(fault.value) as RTorrentFault;
 
   throw new Error(`XML-RPC Fault ${faultCode}: ${faultString}`);
 }

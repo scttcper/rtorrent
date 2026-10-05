@@ -97,4 +97,14 @@ describe('normalizeTorrentData', () => {
       5,
     );
   });
+
+  it('should use the parent of d.directory as savePath for multi-file torrents', () => {
+    const result = normalizeTorrentData({
+      ...started,
+      basePath: '/downloads/incoming/ctrl-rqbit-multi',
+      isMultiFile: true,
+    });
+    expect(result.savePath).toBe('/downloads/incoming');
+    expect(normalizeTorrentData(started).savePath).toBe('/downloads/incoming');
+  });
 });

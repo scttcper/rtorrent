@@ -1,3 +1,5 @@
+import { dirname } from 'node:path/posix';
+
 import {
   type NormalizedTorrent,
   TorrentState as NormalizedTorrentState,
@@ -40,6 +42,9 @@ export function normalizeTorrentData(torrent: RTorrentTorrent): NormalizedTorren
 
   const isCompleted = torrent.isComplete;
 
+  // d.directory includes the torrent's folder for multi-file torrents, use the parent to match single-file torrents
+  const savePath = torrent.isMultiFile ? dirname(torrent.basePath) : torrent.basePath;
+
   return {
     id: torrent.hash.toLowerCase(),
     name: torrent.name,
@@ -52,7 +57,7 @@ export function normalizeTorrentData(torrent: RTorrentTorrent): NormalizedTorren
     label: torrent.custom1 || '',
     tags: [],
     dateCompleted,
-    savePath: torrent.basePath,
+    savePath,
     uploadSpeed: torrent.upRate,
     downloadSpeed: torrent.downRate,
     // rTorrent has no queue, priority is available in raw
