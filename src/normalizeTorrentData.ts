@@ -13,28 +13,16 @@ import type { RTorrentTorrent } from './types.js';
  * @returns Normalized torrent data
  */
 export function normalizeTorrentData(torrent: RTorrentTorrent): NormalizedTorrent {
-  // Calculate progress percentage
-  const progress =
-    torrent.sizeBytes > 0 ? Math.round((torrent.bytesDone / torrent.sizeBytes) * 100) / 100 : 0;
+  const progress = torrent.sizeBytes > 0 ? torrent.bytesDone / torrent.sizeBytes : 0;
 
-  // Determine torrent status based on rTorrent state
-  let state = NormalizedTorrentState.unknown;
-  const stateMessage = '';
-
-  if (torrent.isComplete) {
-    state = NormalizedTorrentState.seeding;
-  } else if (torrent.isActive && torrent.downRate > 0) {
-    state = NormalizedTorrentState.downloading;
-  } else if (torrent.isActive && torrent.upRate > 0) {
-    state = NormalizedTorrentState.seeding;
-  } else if (torrent.state === 2) {
-    // Checking
+  // rTorrent has no queue. d.state is 0 stopped or 1 started, a started torrent is paused when it is not active
+  let state = NormalizedTorrentState.paused;
+  if (torrent.hashing > 0) {
     state = NormalizedTorrentState.checking;
-  } else if (torrent.state === 0) {
-    // Stopped
-    state = NormalizedTorrentState.paused;
-  } else {
-    state = NormalizedTorrentState.queued;
+  } else if (torrent.state === 1 && torrent.isActive) {
+    state = torrent.isComplete
+      ? NormalizedTorrentState.seeding
+      : NormalizedTorrentState.downloading;
   }
 
   // Calculate ETA in seconds
@@ -46,22 +34,16 @@ export function normalizeTorrentData(torrent: RTorrentTorrent): NormalizedTorren
   // Convert ratio from thousandths to decimal
   const ratio = torrent.ratio / 1000;
 
-  // Calculate completion time
   const dateCompleted =
-    torrent.finishedTime > 0 ? new Date(torrent.finishedTime * 1000).toISOString() : '';
-
-  // Calculate added time (using creation date as fallback)
-  const dateAdded =
-    torrent.creationDate > 0
-      ? new Date(torrent.creationDate * 1000).toISOString()
-      : new Date().toISOString();
+    torrent.finishedTime > 0 ? new Date(torrent.finishedTime * 1000).toISOString() : undefined;
+  const dateAdded = new Date(torrent.loadDate * 1000).toISOString();
 
   const isCompleted = torrent.isComplete;
 
   return {
-    id: torrent.hash,
+    id: torrent.hash.toLowerCase(),
     name: torrent.name,
-    stateMessage,
+    stateMessage: torrent.message,
     state,
     eta,
     dateAdded,
@@ -73,12 +55,13 @@ export function normalizeTorrentData(torrent: RTorrentTorrent): NormalizedTorren
     savePath: torrent.basePath,
     uploadSpeed: torrent.upRate,
     downloadSpeed: torrent.downRate,
-    queuePosition: torrent.priority,
+    // rTorrent has no queue, priority is available in raw
+    queuePosition: 0,
     connectedPeers: torrent.peersConnected,
     connectedSeeds: torrent.peersComplete,
     totalPeers: torrent.peersAccounted,
     totalSeeds: torrent.peersComplete,
-    totalSelected: torrent.bytesDone,
+    totalSelected: torrent.sizeBytes,
     totalSize: torrent.sizeBytes,
     totalUploaded: torrent.upTotal,
     totalDownloaded: torrent.bytesDone,

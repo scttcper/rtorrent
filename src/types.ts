@@ -240,6 +240,10 @@ export interface RTorrentTorrent {
    */
   chunksHashed: number;
   /**
+   * Unix time the torrent was added
+   */
+  loadDate: number;
+  /**
    * Associated views
    */
   views: string[];

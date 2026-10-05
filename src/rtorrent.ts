@@ -160,6 +160,7 @@ export class RTorrent implements TorrentClient {
         'd.skip.total=', // skip total
         'd.hashing=', // hashing
         'd.chunks_hashed=', // chunks hashed
+        'd.load_date=', // time the torrent was added
       ],
     };
 
@@ -684,6 +685,7 @@ export class RTorrent implements TorrentClient {
       skipTotal: row[32] as number,
       hashing: row[33] as number,
       chunksHashed: row[34] as number,
+      loadDate: row[35] as number,
       views: [],
     };
   }
